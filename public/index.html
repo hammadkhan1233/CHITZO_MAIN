@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Verified Video Chat - Pro Version</title>
+    <style>
+        /* Modern, Clean Look */
+        body { 
+            background: #0f172a; /* Deep Blue Background */
+            color: #e2e8f0; 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            justify-content: center; 
+            min-height: 100vh; 
+            margin: 0; 
+        }
+        h1 { color: #818cf8; margin-bottom: 20px; }
+        h2 { color: #f87171; }
+
+        /* Generic Card/Box Style */
+        .card-box {
+            background: #1e293b; /* Darker card background */
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+            text-align: center;
+            width: 90%;
+            max-width: 400px;
+        }
+
+        /* Input and Button Styling */
+        input[type="text"] {
+            width: calc(100% - 20px);
+            padding: 12px;
+            margin: 10px 0;
+            border: 1px solid #475569;
+            border-radius: 6px;
+            background: #334155;
+            color: #e2e8f0;
+            box-sizing: border-box;
+        }
+        button { 
+            padding: 12px 25px; 
+            font-size: 16px; 
+            background: #818cf8; /* Primary button color */
+            color: #1e293b; 
+            border: none; 
+            border-radius: 6px; 
+            cursor: pointer; 
+            margin-top: 15px; 
+            transition: background 0.3s;
+        }
+        button:hover:not(:disabled) { background: #a5b4fc; }
+        button:disabled { background: #475569; cursor: not-allowed; }
+
+        /* Video and Chat Layout */
+        #main-content { 
+            display: flex; 
+            width: 95%; 
+            max-width: 1400px; 
+            gap: 20px; 
+            min-height: 650px; 
+            align-items: flex-start;
+        }
+        #video-section { 
+            flex: 2; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+        }
+        #chat-section { 
+            flex: 1; 
+            display: none; 
+            background: #1e293b; 
+            padding: 15px; 
+            border-radius: 8px; 
+            min-width: 350px; 
+            height: 550px; 
+        }
+        #video-container { 
+            display: flex; 
+            gap: 20px; 
+            width: 100%; 
+            height: 450px; 
+            display: none; 
+            margin-top: 10px;
+        }
+        video { 
+            width: 50%; 
+            border-radius: 8px; 
+            background: #000; 
+            border: 2px solid #818cf8; 
+            box-shadow: 0 0 10px rgba(129, 140, 248, 0.4);
+        }
+        #tempVideo { border: 2px solid #f87171; }
+
+        /* Chat Specific */
+        #messages { 
+            height: 80%; 
+            overflow-y: scroll; 
+            margin-bottom: 10px; 
+            padding: 10px; 
+            background: #334155; 
+            border-radius: 5px; 
+        }
+        .my-msg { text-align: right; color: #99f6e4; }
+        .stranger-msg { text-align: left; color: #cbd5e1; }
+        .error-msg { color: #f87171; }
+    </style>
+    
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/simple-peer/9.11.1/simplepeer.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+</head>
+<body>
+
+    <div id="initial-form" class="card-box">
+        <h2>👋 Welcome Stranger!</h2>
+        <p>Please enter your details to proceed to verification.</p>
+        <input type="text" id="userNameInput" placeholder="Your Name (Letters Only)" maxlength="20">
+        <input type="text" id="userAgeInput" placeholder="Your Age (Number Only)" maxlength="3">
+        <button id="submitInfoBtn">Proceed to Face Check</button>
+        <p id="infoError" class="error-msg"></p>
+    </div>
+
+    <div id="verification-box" class="card-box" style="display:none;">
+        <h2>🔞 Age Verification</h2>
+        <p>AI is loading... Please look into the camera.</p>
+        <video id="tempVideo" width="300" height="250" autoplay muted></video>
+        <br>
+        <button id="verifyBtn" disabled>Loading...</button>
+        <p id="verifyMsg"></p>
+    </div>
+
+    <div id="main-content" style="display:none;">
+        <div id="video-section">
+            <h1 id="welcomeHeader"></h1>
+            <div id="status">Status: Connecting...</div>
+            <div id="video-container">
+                <video id="myVideo" autoplay muted playsinline></video>
+                <video id="peerVideo" autoplay playsinline></video>
+            </div>
+            <button id="nextBtn" style="display:none;">Next Stranger</button>
+        </div>
+        
+        <div id="chat-section">
+            <h3>Text Chat</h3>
+            <div id="messages"></div>
+            <input type="text" id="message-input" placeholder="Type your message..." >
+            <button id="send-button">Send</button>
+        </div>
+    </div>
+
+<script>
+    const socket = io();
+    let myStream;
+    let peer;
+    let userName = "User"; // Store user name
+
+    // UI Elements
+    const initialForm = document.getElementById('initial-form');
+    const verificationBox = document.getElementById('verification-box');
+    const mainContent = document.getElementById('main-content');
+    const verifyBtn = document.getElementById('verifyBtn');
+    const tempVideo = document.getElementById('tempVideo');
+    const verifyMsg = document.getElementById('verifyMsg');
+    const statusText = document.getElementById('status');
+    const videoContainer = document.getElementById('video-container');
+    const chatSection = document.getElementById('chat-section');
+    const welcomeHeader = document.getElementById('welcomeHeader');
+    
+    // Form Elements
+    const submitInfoBtn = document.getElementById('submitInfoBtn');
+    const userNameInput = document.getElementById('userNameInput');
+    const userAgeInput = document.getElementById('userAgeInput');
+    const infoError = document.getElementById('infoError');
+
+    // Chat Elements
+    const messagesDiv = document.getElementById('messages');
+    const messageInput = document.getElementById('message-input');
+    const sendButton = document.getElementById('send-button');
+    
+    // AI Constants
+    const AGE_THRESHOLD = 18;
+    const MODEL_URL = '/models'; 
+
+    // ----------------------------------------------------
+    // STAGE 1: Form Validation Logic
+    // ----------------------------------------------------
+    submitInfoBtn.addEventListener('click', handleInfoSubmit);
+    
+    function handleInfoSubmit() {
+        const name = userNameInput.value.trim();
+        const age = parseInt(userAgeInput.value.trim());
+
+        infoError.textContent = ''; // Clear previous error
+
+        if (name.length < 3 || !/^[a-zA-Z\s]+$/.test(name)) {
+            infoError.textContent = 'Name must be 3+ letters only.';
+            return;
+        }
+        if (isNaN(age) || age < 18 || age > 100) {
+            infoError.textContent = 'Age must be a number between 18 and 100.';
+            return;
+        }
+
+        userName = name; // Save name globally
+        initialForm.style.display = 'none'; // Hide form
+        verificationBox.style.display = 'block'; // Show AI stage
+        setupCameraAndModels(); // Start loading AI
+    }
+
+
+    // ----------------------------------------------------
+    // STAGE 2: AI Verification Logic
+    // ----------------------------------------------------
+    async function setupCameraAndModels() {
+        verifyMsg.innerText = "Loading AI models... (Check public/models folder)";
+        
+        try {
+            await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+            await faceapi.nets.ageGenderNet.loadFromUri(MODEL_URL);
+            await faceapi.nets.faceLandmark68TinyNet.loadFromUri(MODEL_URL);
+
+            verifyMsg.innerText = "Models loaded. Grant camera access.";
+            
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            tempVideo.srcObject = stream;
+            myStream = stream;
+            verifyBtn.disabled = false; 
+            verifyBtn.innerText = "Click to Scan Face";
+
+        } catch(error) {
+            console.error("Model/Camera Setup Error:", error);
+            verifyMsg.innerText = "FATAL ERROR: Models not found OR Camera denied. Check console/models folder!";
+            verifyMsg.style.color = 'red';
+        }
+    }
+    
+    verifyBtn.addEventListener('click', async () => {
+        if (!myStream || verifyBtn.disabled) return;
+
+        verifyMsg.innerText = "Scanning and estimating age...";
+
+        const detection = await faceapi.detectSingleFace(
+            tempVideo, 
+            new faceapi.TinyFaceDetectorOptions()
+        ).withAgeAndGender();
+
+        if (detection) {
+            const estimatedAge = Math.round(detection.age);
+            
+            if (estimatedAge >= AGE_THRESHOLD) {
+                // Success: Proceed to Chat Stage
+                verificationBox.style.display = 'none';
+                mainContent.style.display = 'flex'; 
+                welcomeHeader.textContent = `Hello, ${userName}! Finding Partner...`;
+                
+                tempVideo.srcObject = null; // Stop temp stream
+                startChat(); 
+            } else {
+                verifyMsg.innerText = `Access Denied. Estimated Age: ${estimatedAge}. Must be ${AGE_THRESHOLD}+.`;
+                verifyMsg.style.color = "red";
+            }
+        } else {
+            verifyMsg.innerText = "Face not detected. Center your face and click again.";
+            verifyMsg.style.color = "yellow";
+        }
+    });
+
+    // ----------------------------------------------------
+    // STAGE 3: Chat and WebRTC Logic
+    // ----------------------------------------------------
+    function startChat() {
+        videoContainer.style.display = 'flex';
+        chatSection.style.display = 'block'; 
+        
+        document.getElementById('myVideo').srcObject = myStream;
+        statusText.innerText = "Connecting to server...";
+        socket.emit('join');
+    }
+
+    socket.on('waiting', (msg) => {
+        statusText.innerText = msg;
+    });
+
+    socket.on('chat-start', (data) => {
+        statusText.innerText = "Stranger found! Connecting P2P...";
+        
+        peer = new SimplePeer({
+            initiator: data.initiator,
+            trickle: false,
+            stream: myStream,
+            config: {
+                iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+            }
+        });
+
+        peer.on('signal', signal => {
+            // Signal bhejte waqt apna name bhi bhej rahe hain
+            socket.emit('signal', { signal: signal, name: userName });
+        });
+
+        peer.on('stream', stream => {
+            document.getElementById('peerVideo').srcObject = stream;
+            statusText.innerText = "Connected! Start Talking.";
+        });
+        
+        socket.on('signal', (data) => {
+            peer.signal(data.signal);
+            // Jab signal receive ho, partner ka naam update karo
+            statusText.innerText = `Connected with ${data.name}! Start Talking.`;
+        });
+    });
+
+    socket.on('partner-disconnected', () => {
+        statusText.innerText = "Stranger disconnected. Finding new partner...";
+        document.getElementById('peerVideo').srcObject = null;
+        if (peer) peer.destroy();
+        messagesDiv.innerHTML = ''; 
+        socket.emit('join');
+    });
+
+    // ----------------------------------------------------
+    // Text Chat Functions
+    // ----------------------------------------------------
+
+    sendButton.addEventListener('click', sendMessage);
+    messageInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            sendMessage();
+        }
+    });
+
+    function sendMessage() {
+        const message = messageInput.value.trim();
+        if (message) {
+            appendMessage(userName, message, 'my-msg'); 
+            socket.emit('send-message', { text: message, name: userName }); // Send name too
+            messageInput.value = ''; 
+        }
+    }
+
+    socket.on('receive-message', (data) => {
+        appendMessage(data.name, data.text, 'stranger-msg');
+    });
+
+    function appendMessage(sender, text, className) {
+        const msg = document.createElement('p');
+        msg.innerHTML = `<strong>${sender}:</strong> ${text}`;
+        msg.className = className; // Use CSS class for styling
+        msg.style.margin = '5px 0';
+        messagesDiv.appendChild(msg);
+        messagesDiv.scrollTop = messagesDiv.scrollHeight; 
+    }
+</script>
+</body>
+</html>
