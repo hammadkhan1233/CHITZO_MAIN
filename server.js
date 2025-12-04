@@ -6,7 +6,7 @@ const { Server } = require("socket.io");
 const io = new Server(server);
 
 // Static files (index.html, models, etc.) public folder se serve honge
-app.use(express.static('public'));
+app.use(express.static('public')); // ✅ AI Models ke liye ye line critical hai
 
 let waitingUser = null;
 
