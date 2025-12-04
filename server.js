@@ -36,7 +36,8 @@ io.on('connection', (socket) => {
     // 2. WebRTC Signaling (Video Connection)
     socket.on('signal', (data) => {
         if (socket.partnerId) {
-            io.to(socket.partnerId).emit('signal', data);
+            // Data mein name bhi bhej rahe hain
+            io.to(socket.partnerId).emit('signal', data); 
         }
     });
 
