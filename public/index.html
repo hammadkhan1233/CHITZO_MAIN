@@ -93,7 +93,6 @@
             display: none; 
             min-width: 350px; 
             height: 650px; 
-            /* Applying Glassmorphism to chat */
             background: rgba(30, 41, 59, 0.6); 
             backdrop-filter: blur(10px);
             border: 1px solid rgba(56, 189, 248, 0.4); 
@@ -221,11 +220,6 @@
     </div>
 
 <script>
-    // **********************************************
-    // NOTE: The JavaScript logic remains the same as the previous full update.
-    // Only HTML structure and CSS styles have changed for the cool look.
-    // **********************************************
-    
     const socket = io();
     let myStream;
     let peer;
@@ -260,6 +254,7 @@
 
     // AI Constants
     const AGE_THRESHOLD = 18;
+    // CRITICAL: Path must be correct (e.g., /models) and files must be in public/models 
     const MODEL_URL = '/models'; 
 
     // ----------------------------------------------------
@@ -310,7 +305,7 @@
 
         } catch(error) {
             console.error("Model/Camera Setup Error:", error);
-            verifyMsg.innerText = "FATAL ERROR: Models not found OR Camera denied.";
+            verifyMsg.innerText = "FATAL ERROR: Models not found OR Camera denied. Check Console for details.";
             verifyMsg.style.color = 'red';
         }
     }
@@ -370,12 +365,20 @@
             trickle: false,
             stream: myStream,
             config: {
+                // HIGH RELIABILITY FIX: Added two different TURN servers
                 iceServers: [
                     { urls: 'stun:stun.l.google.com:19302' },
+                    // Primary TURN Server (Relay fallback)
                     { 
                         urls: 'turn:openrelay.metered.ca:80',
                         username: 'openrelayapp', 
                         credential: 'openrelaypassword' 
+                    },
+                    // Secondary TURN Server (More commonly used)
+                    { 
+                        urls: 'turn:stun.l.google.com:19305?transport=udp',
+                        username: 'webrtc', 
+                        credential: 'webrtc' 
                     }
                 ]
             }
