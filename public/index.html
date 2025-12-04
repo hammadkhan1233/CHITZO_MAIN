@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>Verified Video Chat - Pro Version</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"> 
     <style>
         /* Modern, Clean Look */
         body { 
@@ -55,6 +56,15 @@
         button:hover:not(:disabled) { background: #a5b4fc; }
         button:disabled { background: #475569; cursor: not-allowed; }
 
+        /* Control Buttons (Mute/Video Off) */
+        .control-btn {
+            background: #475569;
+            color: white;
+            padding: 10px 15px;
+            margin: 5px;
+            font-size: 14px;
+        }
+        
         /* Video and Chat Layout */
         #main-content { 
             display: flex; 
@@ -142,6 +152,11 @@
                 <video id="myVideo" autoplay muted playsinline></video>
                 <video id="peerVideo" autoplay playsinline></video>
             </div>
+            
+            <div id="controls" style="margin-top: 20px;">
+                <button id="muteBtn" class="control-btn">🔇 Mute Voice</button>
+                <button id="videoOffBtn" class="control-btn">📷 Off Camera</button>
+            </div>
             <button id="nextBtn" style="display:none;">Next Stranger</button>
         </div>
         
@@ -182,6 +197,10 @@
     const messageInput = document.getElementById('message-input');
     const sendButton = document.getElementById('send-button');
     
+    // NEW: Control Elements
+    const muteBtn = document.getElementById('muteBtn');
+    const videoOffBtn = document.getElementById('videoOffBtn');
+
     // AI Constants
     const AGE_THRESHOLD = 18;
     const MODEL_URL = '/models'; 
@@ -324,7 +343,7 @@
     });
 
     // ----------------------------------------------------
-    // Text Chat Functions
+    // STAGE 4: Text Chat Functions
     // ----------------------------------------------------
 
     sendButton.addEventListener('click', sendMessage);
@@ -355,6 +374,47 @@
         messagesDiv.appendChild(msg);
         messagesDiv.scrollTop = messagesDiv.scrollHeight; 
     }
+
+    // ----------------------------------------------------
+    // STAGE 5: Controls Logic (Mute/Video Off) - NEW
+    // ----------------------------------------------------
+
+    muteBtn.addEventListener('click', () => {
+        if (!myStream || myStream.getAudioTracks().length === 0) return;
+
+        const audioTrack = myStream.getAudioTracks()[0];
+        const isMuted = audioTrack.enabled; 
+
+        audioTrack.enabled = !isMuted; // Toggle the state
+
+        if (audioTrack.enabled) {
+            muteBtn.innerText = '🔇 Mute Voice';
+            muteBtn.style.backgroundColor = ''; 
+        } else {
+            muteBtn.innerText = '🔊 Unmute Voice';
+            muteBtn.style.backgroundColor = '#f87171'; // Red for Muted
+        }
+    });
+
+    videoOffBtn.addEventListener('click', () => {
+        if (!myStream || myStream.getVideoTracks().length === 0) return;
+
+        const videoTrack = myStream.getVideoTracks()[0];
+        const isVideoOff = videoTrack.enabled; 
+
+        videoTrack.enabled = !isVideoOff; // Toggle the state
+
+        if (videoTrack.enabled) {
+            videoOffBtn.innerText = '📷 Off Camera';
+            videoOffBtn.style.backgroundColor = ''; 
+            document.getElementById('myVideo').style.opacity = '1';
+        } else {
+            videoOffBtn.innerText = '📹 On Camera';
+            videoOffBtn.style.backgroundColor = '#f87171'; // Red for Off
+            document.getElementById('myVideo').style.opacity = '0.3'; // Dim video when off
+        }
+    });
+
 </script>
 </body>
 </html>
